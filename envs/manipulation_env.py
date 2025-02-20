@@ -1,22 +1,17 @@
 # ur5, pybullet
-import os, inspect
 import os.path as osp
 import pybullet as p
-import math
-import sys
 
 import pybullet_data
-from pybullet_ur5.robot import UR5Robotiq85, Panda
+from envs.agents.pybullet_ur5.robot import UR5Robotiq85
 from pybullet_utils.bullet_client import BulletClient
 import time
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from utils.debug_utils import *
-from utils.transform_utils import *
+from envs.utils.transform_utils import *
 
 # humanoid
-from agents.humanoid_supine import Humanoid
-from agents.humanoid_sitting import HumanoidSeated
+from envs.agents.humanoid_supine import Humanoid
+from envs.agents.humanoid_sitting import HumanoidSeated
 
 # mppi planner (ramp)
 from mppi_planning.trajectory_planning import TrajectoryPlanner
@@ -25,14 +20,14 @@ from mppi_planning.mppi_human_handshake import MPPI_H_Handshake
 
 # point cloud
 import open3d as o3d
-from utils.point_cloud_utils import *
+from envs.utils.point_cloud_utils import *
 
 # grasp generation
-from utils.grasp_utils import *
+from envs.utils.grasp_utils import *
 from grasp_sampler.antipodal_grasp_sampler import *
 
 # utils
-from utils.collision_utils import get_collision_fn
+from envs.utils.collision_utils import get_collision_fn
 from wiping_task.util import Util
 from wiping_task.targets_util import TargetsUtil
 
@@ -154,9 +149,9 @@ class ManipulationDemo():
         plane_id = self.bc.loadURDF("plane.urdf", (0, 0, -0.04))
         # plane_id = self.bc.loadURDF("./urdf/plane_0.urdf", (0, 0, -0.04))
         if self.seated:
-            self.bed_id = self.bc.loadURDF("./urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
         else:
-            self.bed_id = self.bc.loadURDF("./urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
         self.human_cid = None
         self.tool_cid = None
 
@@ -212,7 +207,7 @@ class ManipulationDemo():
             self.robot_base_pose = ((0.3, -0.6, 0.65), (0, 0, 0))
         else:
             self.robot_base_pose = ((0.5, 0.8, 0.25), (0, 0, 0))
-        self.cube_id = self.bc.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
                                    (self.robot_base_pose[0][0], self.robot_base_pose[0][1], self.robot_base_pose[0][2]-0.15), useFixedBase=True)
         self.world_to_robot_base = compute_matrix(translation=self.robot_base_pose[0], rotation=self.robot_base_pose[1], rotation_type='euler')
         self.robot = UR5Robotiq85(self.bc, self.robot_base_pose[0], self.robot_base_pose[1])
@@ -223,7 +218,7 @@ class ManipulationDemo():
 
         # load second robot (wiping)
         self.robot_2_base_pose = ((0.65, 0, 0.25), (0, 0, 1.57))
-        self.cube_2_id = self.bc.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_2_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
                             (self.robot_2_base_pose[0][0], self.robot_2_base_pose[0][1], self.robot_2_base_pose[0][2]-0.15), useFixedBase=True)
         self.world_to_robot_2_base = compute_matrix(translation=self.robot_2_base_pose[0], rotation=self.robot_2_base_pose[1], rotation_type='euler')
         self.robot_2 = UR5Robotiq85(self.bc, self.robot_2_base_pose[0], self.robot_2_base_pose[1])
@@ -261,7 +256,7 @@ class ManipulationDemo():
         eef_to_tool = self.bc.multiplyTransforms(positionA=eef_to_world[0], orientationA=eef_to_world[1], 
                                                  positionB=world_to_tool[0], orientationB=world_to_tool[1], physicsClientId=self.bc._client)
         self.eef_to_tool = eef_to_tool
-        self.tool = self.bc.loadURDF("./urdf/wiper.urdf", basePosition=world_to_tool[0], baseOrientation=world_to_tool[1], physicsClientId=self.bc._client)
+        self.tool = self.bc.loadURDF("./envs/urdf/wiper.urdf", basePosition=world_to_tool[0], baseOrientation=world_to_tool[1], physicsClientId=self.bc._client)
 
         # disable collisions between the tool and robot
         for j in self.robot_2.arm_controllable_joints:

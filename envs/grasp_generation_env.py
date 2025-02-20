@@ -6,12 +6,11 @@ import math
 import sys
 
 import pybullet_data
-from pybullet_ur5.robot import UR5Robotiq85
+from agents.pybullet_ur5.robot import UR5Robotiq85
 from pybullet_utils.bullet_client import BulletClient
 import time
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from utils.debug_utils import *
 from utils.transform_utils import *
 
 # humanoid
@@ -56,9 +55,9 @@ class GraspDemo():
         # load environment
         plane_id = self.bc.loadURDF("plane.urdf", (0, 0, -0.04))
         if self.seated:
-            self.bed_id = self.bc.loadURDF("./urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
         else:
-            self.bed_id = self.bc.loadURDF("./urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
         self.human_cid = None
         self.tool_cid = None
 
@@ -111,7 +110,7 @@ class GraspDemo():
 
         # load first robot (manipulation)
         self.robot_base_pose = ((0.5, 0.8, 0.25), (0, 0, 0))
-        self.cube_id = self.bc.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
                                    (self.robot_base_pose[0][0], self.robot_base_pose[0][1], self.robot_base_pose[0][2]-0.15), useFixedBase=True)
         self.world_to_robot_base = compute_matrix(translation=self.robot_base_pose[0], rotation=self.robot_base_pose[1], rotation_type='euler')
         self.robot = UR5Robotiq85(self.bc, self.robot_base_pose[0], self.robot_base_pose[1])
@@ -122,7 +121,7 @@ class GraspDemo():
 
         # load second robot (wiping)
         self.robot_2_base_pose = ((0.55, 0, 0), (0, 0, -1.57))
-        self.cube_2_id = self.bc.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_2_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
                             (self.robot_2_base_pose[0][0], self.robot_2_base_pose[0][1], self.robot_2_base_pose[0][2]-0.15), useFixedBase=True)
         self.world_to_robot_2_base = compute_matrix(translation=self.robot_2_base_pose[0], rotation=self.robot_2_base_pose[1], rotation_type='euler')
         self.robot_2 = UR5Robotiq85(self.bc, self.robot_2_base_pose[0], self.robot_2_base_pose[1])

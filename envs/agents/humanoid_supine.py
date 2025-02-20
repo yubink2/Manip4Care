@@ -18,7 +18,7 @@ class Humanoid(object):
     self._ornShift = ornShift
     self._pybullet_client = pybullet_client
 
-    self._humanoid = self._pybullet_client.loadURDF("urdf/humanoid_with_rev.urdf", [0, 0.9, 0],
+    self._humanoid = self._pybullet_client.loadURDF("./envs/urdf/humanoid_with_rev.urdf", [0, 0.9, 0],
                                                     globalScaling=0.2,
                                                     useFixedBase=True)
 

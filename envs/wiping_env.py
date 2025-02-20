@@ -13,7 +13,7 @@ from agents.humanoid_supine import Humanoid
 from agents.humanoid_sitting import HumanoidSeated
 
 # robot
-from pybullet_ur5.robot import UR5Robotiq85
+from agents.pybullet_ur5.robot import UR5Robotiq85
 from utils.collision_utils import get_collision_fn
 
 # utils
@@ -77,9 +77,9 @@ class WipingDemo():
         # load environment
         plane_id = self.bc.loadURDF("plane.urdf", (0, 0, -0.04), physicsClientId=self.bc._client)
         if self.seated:
-            self.bed_id = self.bc.loadURDF("./urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
         else:
-            self.bed_id = self.bc.loadURDF("./urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
+            self.bed_id = self.bc.loadURDF("./envs/urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
 
         # load human
         human_base_pos = (0, 0, 0.3)
@@ -127,7 +127,7 @@ class WipingDemo():
 
         # load first robot (manipulation)
         self.robot_base_pose = ((0.5, 0.8, 0.25), (0, 0, 0))
-        self.cube_id = self.bc.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
                                    (self.robot_base_pose[0][0], self.robot_base_pose[0][1], self.robot_base_pose[0][2]-0.15), useFixedBase=True)
         self.robot = UR5Robotiq85(self.bc, self.robot_base_pose[0], self.robot_base_pose[1])
         self.robot.load()
@@ -137,7 +137,7 @@ class WipingDemo():
 
         # load second robot (wiping)
         self.robot_2_base_pose = ((0.65, 0, 0.25), (0, 0, 1.57))
-        self.cube_2_id = p.loadURDF("./urdf/cube_0.urdf", 
+        self.cube_2_id = p.loadURDF("./envs/urdf/cube_0.urdf", 
                             (self.robot_2_base_pose[0][0], self.robot_2_base_pose[0][1], self.robot_2_base_pose[0][2]-0.15), useFixedBase=True,
                             physicsClientId=self.bc._client)
         self.robot_2 = UR5Robotiq85(self.bc, self.robot_2_base_pose[0], self.robot_2_base_pose[1])
@@ -194,7 +194,7 @@ class WipingDemo():
         eef_to_tool = self.bc.multiplyTransforms(positionA=eef_to_world[0], orientationA=eef_to_world[1], 
                                                  positionB=world_to_tool[0], orientationB=world_to_tool[1], physicsClientId=self.bc._client)
         self.eef_to_tool = eef_to_tool
-        self.tool = self.bc.loadURDF("./urdf/wiper.urdf", basePosition=world_to_tool[0], baseOrientation=world_to_tool[1], physicsClientId=self.bc._client)
+        self.tool = self.bc.loadURDF("./envs/urdf/wiper.urdf", basePosition=world_to_tool[0], baseOrientation=world_to_tool[1], physicsClientId=self.bc._client)
 
         # disable collisions between the tool and robot
         for j in self.robot_2.arm_controllable_joints:

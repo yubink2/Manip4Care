@@ -60,17 +60,17 @@ RUN pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url h
 
 RUN pip install scipy
 RUN pip install wheel
-RUN pip install pytorch-kinematics
+RUN pip install pytorch-kinematics==0.7.4
 RUN pip install ipywidgets
 
-# Clone the AssistiveManipulation repository
-RUN git clone https://github.com/yubink2/AssistiveManipulation.git
+# Clone the repository
+RUN git clone https://github.com/yubink2/AssistiveLimbManipulation.git
 
 # Set the working directory to the cloned repository
-WORKDIR /app/AssistiveManipulation
+WORKDIR /app/AssistiveLimbManipulation
 
 # Install the 'csdf' module from the 'extern/csdf' directory
-RUN (cd extern/csdf && pip install .)
+RUN (cd resources/csdf && pip install .)
 
 # Install pytorch3d (this may take some time)
 RUN pip install "git+https://github.com/facebookresearch/pytorch3d.git"
