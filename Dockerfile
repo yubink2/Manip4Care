@@ -1,28 +1,24 @@
-# Use the NVIDIA CUDA base image for Ubuntu 22.04 with CUDA 11.8
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+# Use the NVIDIA CUDA *devel* base image (includes nvcc) for Ubuntu 22.04 with CUDA 11.8
+# FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-devel
 
-# Set the working directory in the container
+# Prevent interactive prompts from apt
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Set a working directory
 WORKDIR /app
 
-# Install dependencies and Miniconda
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y wget bzip2 git \
-    && wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    && bash Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda \
-    && rm Miniconda3-latest-Linux-x86_64.sh
-
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    python3-dev \
+# 1) Install system packages + Python 3.8 from deadsnakes PPA
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    wget git bzip2 vim \
     mesa-utils \
     libgl1-mesa-glx \
     libgl1-mesa-dri \
     libglu1-mesa \
     freeglut3-dev \
     libosmesa6-dev \
-    patchelf \
+    patchelf \  
     x11-apps \
     libedit-dev \
     libffi-dev \
@@ -31,52 +27,54 @@ RUN apt-get update && apt-get install -y \
     tk-dev \
     zlib1g-dev \
     xz-utils \
-    wget \
-    bzip2 \
-    ca-certificates
+    ca-certificates \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.8 python3.8-dev python3.8-distutils \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python 3.8 and other packages via pip if not available in apt
+# 2) Make python3 -> python3.8
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+
+# 3) Install pip for Python 3.8, then upgrade
+RUN apt-get update && apt-get install -y --no-install-recommends python3-pip && rm -rf /var/lib/apt/lists/*
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
-# Install specific versions of dependencies using pip or apt
+# Optional: If you really need pinned pip/setuptools/wheel versions:
 RUN python3 -m pip install \
-    pip==24.2 \
-    setuptools==75.1.0 \
-    wheel==0.44.0
+    pip \
+    setuptools \
+    wheel
 
-# Install other dependencies
-RUN pip install numpy==1.23.5
-RUN pip install trimesh
-RUN pip install autolab_core
-RUN pip install h5py
-RUN pip install pyrender
-RUN pip install pyglet==1.5.27
-RUN pip install python-fcl
-RUN pip install open3d
-RUN pip install pybullet
+# 4) Install other Python dependencies (using Python 3.8 now)
+RUN apt-get remove -y python3-blinker
+RUN python3 -m pip install \
+    numpy==1.23.5 \
+    trimesh \
+    autolab_core \
+    h5py \
+    pyrender \
+    pyglet==1.5.27 \
+    python-fcl \
+    open3d \
+    pybullet \
+    scipy \
+    pytorch-kinematics \
+    ipywidgets
 
-# Install PyTorch, Torchvision, and Torchaudio with CUDA 11.8 support
-RUN pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu118
+# 5) Install PyTorch, Torchvision, Torchaudio for CUDA 11.8
+RUN python3 -m pip install \
+    torchvision==0.17.0+cu118 \
+    torchaudio==2.2.0+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
 
-RUN pip install scipy
-RUN pip install wheel
-RUN pip install pytorch-kinematics==0.7.4
-RUN pip install ipywidgets
-
-# Clone the repository
+# 6) Clone your repository
 RUN git clone https://github.com/yubink2/AssistiveLimbManipulation.git
-
-# Set the working directory to the cloned repository
 WORKDIR /app/AssistiveLimbManipulation
 
-# Install the 'csdf' module from the 'extern/csdf' directory
-RUN (cd resources/csdf && pip install .)
+# 7) Install the 'csdf' module from the 'resources/csdf' directory
+RUN (cd resources/csdf && python3 -m pip install .)
 
-# Install pytorch3d (this may take some time)
-RUN pip install "git+https://github.com/facebookresearch/pytorch3d.git"
-
-# Set the display environment variable to allow PyBullet GUI to run
+# 8) PyBullet GUI settings
 ENV DISPLAY=:0
-
-# Expose the PyBullet GUI port
 EXPOSE 8080

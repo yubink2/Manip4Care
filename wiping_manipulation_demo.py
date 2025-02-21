@@ -779,16 +779,6 @@ def move_robot_loop(manip_env, robot, other_robot, q_robot_init, q_robot_goal, w
 if __name__ == '__main__':
     args = parse_args()
 
-    # ###### DEUBGGGGG ######
-    # args.debug = True
-    args.iter = 10
-    args.gui = True
-    # args.record = True
-    # args.grasp = True
-    # args.use_follower = False
-    # args.use_predictor = False
-    # ###### DEUBGGGGG ######
-
     # computation results for total trials
     total_trial_success_rates = []
     total_trial_wiping_coverages = []

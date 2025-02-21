@@ -13,16 +13,19 @@ docker build -t assistive-manip-env .
 * run the docker container
 ```
 xhost +local:root
-docker run -it --rm \
+docker run -it \
     --gpus all \
-    --env="DISPLAY" \
-    --env="QT_X11_NO_MITSHM=1" \
-    --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" \
+    -e NVIDIA_DRIVER_CAPABILITIES=all \
+    -e DISPLAY \
+    -e QT_X11_NO_MITSHM=1 \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     assistive-manip-env /bin/bash
 ```
 
-* download the h36m dataset from here: https://drive.google.com/file/d/1lGbtOsasw5F2MjvwWd9AtzCXdIefvmpv/view?usp=sharing
-
+* inside the container, install pytorch3d
+```
+FORCE_CUDA=1 pip install 'git+https://github.com/facebookresearch/pytorch3d.git'
+```
 
 ## How to run the limb manipulation pipeline
 
