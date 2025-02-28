@@ -19,9 +19,6 @@ import numpy as np
 from arm_config_NN_train import CombinedModel, PointNetEncoder, ArmConfigPredictor, normalize_point_cloud
 from arm_config_dataset_generation import label_pcd
 
-# video recording
-import cv2
-
 
 # urdf paths
 robot_urdf_location = 'envs/agents/pybullet_ur5/urdf/ur5_robotiq_85.urdf'
@@ -43,46 +40,6 @@ LINK_SKELETON = [
 ]
 
 
-################################################
-#                                              #
-#               VIDEO RECORDING                #
-#                                              #
-################################################
-def capture_frame(bc, frame_dir, frame_count, width=1280, height=1024):
-    """Capture a frame from the PyBullet simulation."""
-    view_matrix = p.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[0, 0, 0],
-                                                      distance=2,
-                                                      yaw=0,
-                                                      pitch=-30,
-                                                      roll=0,
-                                                      upAxisIndex=2,
-                                                      physicsClientId=bc._client)
-    proj_matrix = p.computeProjectionMatrixFOV(fov=60, aspect=float(width) / height,
-                                               nearVal=0.1, farVal=100.0, physicsClientId=bc._client)
-
-    (_, _, px, _, _) = p.getCameraImage(width=width, height=height,
-                                        viewMatrix=view_matrix,
-                                        projectionMatrix=proj_matrix,
-                                        physicsClientId=bc._client)
-    img = np.reshape(px, (height, width, 4))  # RGBA
-    img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)  # Convert to BGR for OpenCV
-    cv2.imwrite(f"{frame_dir}/frame_{frame_count:04d}.png", img)
-
-
-def save_video_from_frames(frame_dir, output_file, fps=20):
-    """Convert captured frames into a video."""
-    img_array = []
-    for filename in sorted(os.listdir(frame_dir)):
-        if filename.endswith(".png"):
-            img = cv2.imread(os.path.join(frame_dir, filename))
-            img_array.append(img)
-
-    height, width, _ = img_array[0].shape
-    out = cv2.VideoWriter(output_file, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
-
-    for img in img_array:
-        out.write(img)
-    out.release()
 
 ################################################
 #                                              #
@@ -162,14 +119,8 @@ def parse_args():
     parser.add_argument(
         "--iter",
         type= int,
-        default=50,
+        default=10,
         help="Specify number for the simulation iteration number."
-    )
-
-    parser.add_argument(
-        "--record",
-        action="store_true",
-        help="Record a video. (Default=False)"
     )
 
     args = parser.parse_args()
@@ -521,8 +472,7 @@ def arm_manipulation_loop(manip_env,
                           q_robot_init, q_robot_goal, 
                           q_H_init, 
                           world_to_eef_goal, q_R_init_traj, 
-                          manip_demo=False, 
-                          record=False, frame_dir="frames/", frame_count=0):
+                          manip_demo=False):
     arm_manip_planning_times = []
     arm_manip_following_times = []
     arm_manip_eef_pos_list = []

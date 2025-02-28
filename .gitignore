@@ -3,4 +3,4 @@ __pycache__/
 */*/__pycache__/
 .vscode/
 data/*
-models/*
+models/arm_config_predictor.*

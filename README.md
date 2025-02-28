@@ -31,6 +31,8 @@ docker run -it \
 FORCE_CUDA=1 pip install 'git+https://github.com/facebookresearch/pytorch3d.git'
 ```
 
+* download the pretrained model from [here](https://drive.google.com/file/d/1H9BplI2wxfPWHnoLNLXC4wGtMm4oKOoI/view?usp=sharing) and extract it in `models/`.
+
 ## How to run the limb manipulation pipeline
 You can run the simulation with our pre-selected the grasp and initial configurations by running:
 ```
