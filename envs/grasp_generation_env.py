@@ -1,132 +1,30 @@
-# ur5, pybullet
-import os, inspect
-import os.path as osp
 import pybullet as p
-import math
-import sys
-
-import pybullet_data
-from agents.pybullet_ur5.robot import UR5Robotiq85
-from pybullet_utils.bullet_client import BulletClient
 import time
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from utils.transform_utils import *
-
-# humanoid
-from agents.humanoid_supine import Humanoid
-from agents.humanoid_sitting import HumanoidSeated
-
-# point cloud
 import open3d as o3d
-from utils.point_cloud_utils import *
+from scipy.spatial.transform import Rotation as R
 
 # grasp generation
-from utils.grasp_utils import *
-from grasp_sampler.antipodal_grasp_sampler import *
+from utils.grasp_utils import get_human_arm_pcd_for_grasp_sampler
+from grasp_sampler.antipodal_grasp_sampler import AntipodalGraspSampler
 
 # utils
 from utils.collision_utils import get_collision_fn
-from wiping_task.util import Util
+from utils.transform_utils import quaternion_from_matrix
+
+# environment
+from envs.base_env import BaseEnv
 
 
-class GraspDemo():
+class GraspEnv(BaseEnv):
     def __init__(self, gui=False, seated=False):
-        # Start the bullet physics server
-        self.gui = gui
-        self.seated = seated
-
-        if self.gui:
-            self.bc = BulletClient(connection_mode=p.GUI)
-        else:
-            self.bc = BulletClient(connection_mode=p.DIRECT)
-
-        self.util = Util(self.bc._client)
+        super().__init__(gui=gui, seated=seated)
 
     def reset(self):
         self.create_world()
 
     def create_world(self):
-        self.bc.setAdditionalSearchPath(pybullet_data.getDataPath())
-        # self.bc.setGravity(0, 0, -9.8) 
-        self.bc.setGravity(0, 0, 0)
-        self.bc.setTimestep = 0.05
-
-        # load environment
-        plane_id = self.bc.loadURDF("plane.urdf", (0, 0, -0.04))
-        if self.seated:
-            self.bed_id = self.bc.loadURDF("./envs/urdf/wheelchair.urdf", globalScaling=0.8, useFixedBase=True)
-        else:
-            self.bed_id = self.bc.loadURDF("./envs/urdf/bed_0.urdf", (0.0, -0.1, 0.0), useFixedBase=True)
-        self.human_cid = None
-        self.tool_cid = None
-
-        # load human
-        human_base_pos = (0, 0, 0.3)
-        human_base_orn = self.bc.getQuaternionFromEuler((0, 1.57, 0))
-        self.human_base_pose = (human_base_pos, human_base_orn)
-
-        if self.seated:
-            human_base_pos = (0, 0, 0.4)
-            human_base_orn = self.bc.getQuaternionFromEuler((1.57, 0, 1.57))
-            self.human_base_pose = (human_base_pos, human_base_orn)
-            self.humanoid = HumanoidSeated(self.bc, baseShift=self.human_base_pose[0], ornShift=self.human_base_pose[1])
-
-            self.chest = 2
-            self.right_shoulder = 6
-            self.right_elbow = 7
-            self.right_wrist = 8
-            self.human_controllable_joints = [3, 4, 5, 7]
-            self.human_right_arm = [3, 4, 5, 6, 7, 8]
-            self.human_rest_poses = [2.0, -0.5, -1.8, 1.0]
-
-            # initialize human parameters
-            shoulder_min = [-3.141560999234642, -1.0003133072549704, -3.1410543732632656]  # order: [yaw, pitch, roll]
-            shoulder_max = [3.14156809556302, 1.469721523320065, 3.140911127761456]        # order: [yaw, pitch, roll]
-
-        else:
-            self.humanoid = Humanoid(self.bc, baseShift=self.human_base_pose[0], ornShift=self.human_base_pose[1])
-        
-            self.chest = 2
-            self.right_shoulder = 6
-            self.right_elbow = 7
-            self.right_wrist = 8
-            self.human_controllable_joints = [3, 4, 5, 7]
-            self.human_right_arm = [3, 4, 5, 6, 7, 8]
-            self.human_rest_poses = [2.4790802489002552, -0.01642306738465106, -1.8128412472566666, 0.4529190452054409]
-
-            # initialize human parameters
-            shoulder_min = [-3.141560999234642, -1.0003133072549704, -3.1410543732632656]  # order: [yaw, pitch, roll]
-            shoulder_max = [3.14156809556302, 1.469721523320065, 3.140911127761456]        # order: [yaw, pitch, roll]
-        
-        elbow_min = [0.0]
-        elbow_max = [2.85735]
-        self.human_arm_lower_limits = shoulder_min + elbow_min
-        self.human_arm_upper_limits = shoulder_max + elbow_max
-        self.human_arm_joint_ranges =  list(np.array(self.human_arm_upper_limits) - np.array(self.human_arm_lower_limits))
-
-        human_base = self.bc.getBasePositionAndOrientation(self.humanoid._humanoid)[:2]
-        self.T_world_to_human_base = compute_matrix(translation=human_base[0], rotation=human_base[1])
-
-        # load first robot (manipulation)
-        self.robot_base_pose = ((0.5, 0.8, 0.25), (0, 0, 0))
-        self.cube_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
-                                   (self.robot_base_pose[0][0], self.robot_base_pose[0][1], self.robot_base_pose[0][2]-0.15), useFixedBase=True)
-        self.world_to_robot_base = compute_matrix(translation=self.robot_base_pose[0], rotation=self.robot_base_pose[1], rotation_type='euler')
-        self.robot = UR5Robotiq85(self.bc, self.robot_base_pose[0], self.robot_base_pose[1])
-        self.robot.load()
-        for _ in range(50):
-            self.robot.reset()
-            self.robot.open_gripper()
-
-        # load second robot (wiping)
-        self.robot_2_base_pose = ((0.55, 0, 0), (0, 0, -1.57))
-        self.cube_2_id = self.bc.loadURDF("./envs/urdf/cube_0.urdf", 
-                            (self.robot_2_base_pose[0][0], self.robot_2_base_pose[0][1], self.robot_2_base_pose[0][2]-0.15), useFixedBase=True)
-        self.world_to_robot_2_base = compute_matrix(translation=self.robot_2_base_pose[0], rotation=self.robot_2_base_pose[1], rotation_type='euler')
-        self.robot_2 = UR5Robotiq85(self.bc, self.robot_2_base_pose[0], self.robot_2_base_pose[1])
-        self.robot_2.load()
-        self.robot_2.reset()
+        super().create_world()
 
         # initialize robot parameters
         world_to_eef = self.bc.getLinkState(self.robot.id, self.robot.eef_id)[:2]
@@ -142,14 +40,6 @@ class GraspDemo():
         self.robot_in_collision = get_collision_fn(self.robot.id, self.robot.arm_controllable_joints, obstacles=robot_obstacles,
                                                    attachments=[], self_collisions=True,
                                                    disabled_collisions=set(), client_id=self.bc._client)
-        
-        # initialize human parameters
-        shoulder_min = [-3.141560999234642, -1.0003133072549704, -3.1410543732632656]  # order: [yaw, pitch, roll]
-        shoulder_max = [3.14156809556302, 1.469721523320065, 3.140911127761456]        # order: [yaw, pitch, roll]
-        elbow_min = [0.0]
-        elbow_max = [2.85735]
-        self.human_arm_lower_limits = shoulder_min + elbow_min
-        self.human_arm_upper_limits = shoulder_max + elbow_max
 
     def generate_grasps(self, q_H):
         def quaternion_dot(q1, q2):
@@ -209,8 +99,6 @@ class GraspDemo():
                                                         self.robot.arm_joint_ranges, self.robot.arm_rest_poses,
                                                         maxNumIterations=50)
             q_R_grasp = [q_R_grasp[i] for i in range(len(self.robot.arm_controllable_joints))]
-            # q_R_grasp = self.util.wrap_to_pi(q_R_grasp)
-            # q_R_grasp = np.clip(q_R_grasp, self.robot.arm_lower_limits, self.robot.arm_upper_limits)
 
             self.reset_robot(self.robot, q_R_grasp)
             eef_pose = self.bc.getLinkState(self.robot.id, self.robot.eef_id)[:2]
@@ -253,148 +141,3 @@ class GraspDemo():
             raise ValueError('No grasp available')
 
         return q_R_grasp_samples, grasp_pose_samples, world_to_eef_goals, best_q_R_grasp, best_world_to_grasp, best_world_to_eef_goal
-    
-    def set_grasp_parameters(self, right_elbow_to_cp, cp_to_right_elbow, eef_to_cp, cp_to_eef,
-                             right_elbow_joint_to_cp, cp_to_right_elbow_joint, right_wrist_joint_to_cp, cp_to_right_wrist_joint):
-        self.right_elbow_to_cp = right_elbow_to_cp
-        self.cp_to_right_elbow = cp_to_right_elbow
-        self.eef_to_cp = eef_to_cp
-        self.cp_to_eef = cp_to_eef
-        self.right_elbow_joint_to_cp = right_elbow_joint_to_cp 
-        self.cp_to_right_elbow_joint = cp_to_right_elbow_joint
-        self.right_wrist_joint_to_cp = right_wrist_joint_to_cp
-        self.cp_to_right_wrist_joint = cp_to_right_wrist_joint
-
-    def compute_grasp_parameters(self, q_H, q_R_grasp, grasp):
-        # compute right_elbow_to_cp
-        self.reset_human_arm(q_H)
-        world_to_right_elbow = self.bc.getLinkState(self.humanoid._humanoid, self.right_elbow)[:2]
-        world_to_cp = (grasp[0], world_to_right_elbow[1])
-        right_elbow_to_world = self.bc.invertTransform(world_to_right_elbow[0], world_to_right_elbow[1])
-        right_elbow_to_cp = self.bc.multiplyTransforms(right_elbow_to_world[0], right_elbow_to_world[1],
-                                                       world_to_cp[0], world_to_cp[1])
-
-        # compute right_elbow_joint_to_cp
-        world_to_right_elbow_joint = self.bc.getLinkState(self.humanoid._humanoid, self.right_elbow)[4:6]
-        right_elbow_joint_to_world = self.bc.invertTransform(world_to_right_elbow_joint[0], world_to_right_elbow_joint[1])
-        right_elbow_joint_to_cp = self.bc.multiplyTransforms(right_elbow_joint_to_world[0], right_elbow_joint_to_world[1],
-                                                             world_to_cp[0], world_to_cp[1])
-        T_right_elbow_joint_to_cp = compute_matrix(translation=right_elbow_joint_to_cp[0], rotation=right_elbow_joint_to_cp[1])
-        
-        # compute eef_to_cp
-        self.reset_robot(self.robot, q_R_grasp)
-        world_to_eef = self.bc.getLinkState(self.robot.id, self.robot.eef_id)
-        eef_to_world = self.bc.invertTransform(world_to_eef[0], world_to_eef[1])
-        eef_to_cp = self.bc.multiplyTransforms(eef_to_world[0], eef_to_world[1],
-                                               world_to_cp[0], world_to_cp[1])
-        
-        self.right_elbow_to_cp = right_elbow_to_cp
-        self.T_right_elbow_joint_to_cp = T_right_elbow_joint_to_cp
-        self.eef_to_cp = eef_to_cp
-
-    def compute_q_R_goal(self, q_H, world_to_right_elbow):
-        world_to_right_elbow = world_to_right_elbow
-        world_to_cp = self.bc.multiplyTransforms(world_to_right_elbow[0], world_to_right_elbow[1],
-                                                 self.right_elbow_to_cp[0], self.right_elbow_to_cp[1])
-        cp_to_world = self.bc.invertTransform(world_to_cp[0], world_to_cp[1])
-        eef_to_world = self.bc.multiplyTransforms(self.eef_to_cp[0], self.eef_to_cp[1],
-                                                cp_to_world[0], cp_to_world[1])
-        world_to_eef = self.bc.invertTransform(eef_to_world[0], eef_to_world[1])
-        
-        q_R_goal = self.bc.calculateInverseKinematics(self.robot.id, self.robot.eef_id, world_to_eef[0], world_to_eef[1],
-                                                    self.robot.arm_lower_limits, self.robot.arm_upper_limits, self.robot.arm_joint_ranges, self.robot.arm_rest_poses,
-                                                    maxNumIterations=50)
-        q_R_goal = [q_R_goal[i] for i in range(len(self.robot.arm_controllable_joints))]
-        if min(q_R_goal) < min(self.robot.arm_lower_limits) or max(q_R_goal) > max(self.robot.arm_upper_limits):
-            valid_grasp = False
-            return valid_grasp, q_R_goal, world_to_eef
-        
-        self.reset_robot(self.robot, q_R_goal)
-        self.robot_2.reset()
-        self.reset_human_arm(q_H)
-
-        # collision check
-        if self.robot_in_collision(q_R_goal):
-            valid_grasp = False
-            return valid_grasp, q_R_goal, world_to_eef
-        else:
-            valid_grasp = True
-
-        # reachability check
-        eef_pos = self.bc.getLinkState(self.robot.id, self.robot.eef_id)[0]
-        dist = np.linalg.norm(np.array(world_to_eef[0]) - np.array(eef_pos))
-        if dist > 0.03:
-            valid_grasp = False
-            return valid_grasp, q_R_goal, world_to_eef
-
-        # distance to human check
-        dist = self.get_human_to_robot_dist(q_H=q_H, q_robot=q_R_goal)
-        if dist <= 0.05:
-            valid_grasp = False
-            return valid_grasp, q_R_goal, world_to_eef
-
-        # distance check from robot to bed (exclude gripper fingers)
-        dist = self.get_bed_to_robot_dist(q_robot=q_R_goal)
-        if dist <= 0.03:
-            valid_grasp = False
-            return valid_grasp, q_R_goal, world_to_eef
-        
-        return valid_grasp, q_R_goal, world_to_eef
-    
-    def get_human_to_robot_dist(self, q_H, q_robot):
-        self.reset_human_arm(q_H)
-        self.reset_robot(self.robot, q_robot)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=self.robot.id, bodyB=self.humanoid._humanoid, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if linkB in self.human_right_arm:
-                continue
-
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-        print(f'min dist human to robot: {min_dist}')
-        return min_dist
-    
-    def get_bed_to_robot_dist(self, q_robot):
-        self.reset_robot(self.robot, q_robot)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=self.robot.id, bodyB=self.bed_id, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if linkA >= 9:  # skip gripper fingers
-                continue
-
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-        print(f'min dist bed to robot: {min_dist}')
-        return min_dist
-
-    def reset_robot(self, robot, q_robot):
-        for i, joint_id in enumerate(robot.arm_controllable_joints):
-            self.bc.resetJointState(robot.id, joint_id, q_robot[i])
-
-    def move_robot(self, robot, q_robot):
-        for i, joint_id in enumerate(robot.arm_controllable_joints):
-            self.bc.setJointMotorControl2(robot.id, joint_id, p.POSITION_CONTROL, q_robot[i])
-
-    def reset_human_arm(self, q_human):
-        for i, j in enumerate(self.human_controllable_joints):
-            self.bc.resetJointState(self.humanoid._humanoid, j, q_human[i], physicsClientId=self.bc._client)
-
-    def move_human_arm(self, q_human):
-        for i, j in enumerate(self.human_controllable_joints):
-            self.bc.setJointMotorControl2(self.humanoid._humanoid, j, p.POSITION_CONTROL, q_human[i], physicsClientId=self.bc._client)
-
-    def get_obstacle_point_cloud(self, obstacles):
-        point_cloud = []
-        for obstacle in obstacles:
-            point_cloud.extend(get_point_cloud_from_visual_shapes(obstacle, client_id=self.bc._client))
-        return np.array(point_cloud)
-
-    def reset_base_pose(self, obj_id, base_pos, base_orn):
-        self.bc.resetBasePositionAndOrientation(obj_id, posObj=base_pos, ornObj=base_orn)

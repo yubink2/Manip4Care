@@ -74,9 +74,9 @@ def check_out_of_range(manip_env, human_joint_angles):
 if __name__ == '__main__':
     args = parse_args()
 
-    manip_env = ManipulationDemo(gui=args.gui, seated=True)
-    wiping_env = WipingDemo(seated=True)
-    grasp_env = GraspDemo(seated=True)
+    manip_env = ManipulationEnv(gui=args.gui, seated=True)
+    wiping_env = WipingEnv(seated=True)
+    grasp_env = GraspEnv(seated=True)
     manip_env.reset()
     wiping_env.reset()
     grasp_env.reset()

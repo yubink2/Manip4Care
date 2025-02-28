@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 
 # from envs.utils.transform_utils import *
 # from envs.utils.point_cloud_utils import *
-from envs.manipulation_env import ManipulationDemo
-from envs.wiping_env import WipingDemo
+from envs.manipulation_env import ManipulationEnv
+from envs.wiping_env import WipingEnv
 
 
 def label_pcd(right_arm_pcd, targets, radius=0.03):
@@ -95,8 +95,8 @@ def save_dataset(iteration):
 
 if __name__ == '__main__':
     # simulation environments
-    wiping_env = WipingDemo(gui=False)
-    manip_env = ManipulationDemo(gui=False)
+    wiping_env = WipingEnv(gui=False)
+    manip_env = ManipulationEnv(gui=False)
     wiping_env.reset()
     manip_env.reset()
     manip_env.lock_robot_gripper_joints(manip_env.robot)

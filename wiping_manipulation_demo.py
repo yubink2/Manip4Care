@@ -9,9 +9,9 @@ import numpy as np
 import argparse
 
 # environments
-from envs.manipulation_env import ManipulationDemo
-from envs.wiping_env import WipingDemo
-from envs.grasp_generation_env import GraspDemo
+from envs.manipulation_env import ManipulationEnv
+from envs.wiping_env import WipingEnv
+from envs.grasp_generation_env import GraspEnv
 
 # arm config NN model
 import torch
@@ -822,9 +822,9 @@ if __name__ == '__main__':
         skip_trial = False
 
         # simulation environments
-        wiping_env = WipingDemo()
-        manip_env = ManipulationDemo(gui=args.gui)
-        grasp_env = GraspDemo()
+        wiping_env = WipingEnv()
+        manip_env = ManipulationEnv(gui=args.gui)
+        grasp_env = GraspEnv()
         wiping_env.reset()
         manip_env.reset()
         grasp_env.reset()
@@ -839,7 +839,7 @@ if __name__ == '__main__':
         manip_env.reset_robot(manip_env.robot_2, q_robot_2_init)
         manip_env.reset_human_arm(q_H_init)
 
-        manip_env.lock_robot_gripper_joints(manip_env.robot)  ######
+        manip_env.lock_robot_gripper_joints(manip_env.robot)
         manip_env.attach_tool()
 
         ### grasp generation
