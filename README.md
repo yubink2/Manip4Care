@@ -41,7 +41,7 @@ python manipulation_demo.py
 python manipulation_seated_demo.py
 ```
 
-Optionally, you can visualize the simulation run with the '--gui' flag. You can run our experiments with reduced ranges of shoulder joints with the '--group' flag. If you would like to generate a new grasp, you can run with the '--grasp' flag, then replace the corresponding variables in the file: 'best_q_R_grasp', 'best_world_to_grasp', and 'best_world_to_eef_goal'.
+Optionally, you can visualize the simulation run with the `--gui` flag. You can run our experiments with reduced ranges of shoulder joints with the `--group` flag. If you would like to generate a new grasp, you can run with the `--grasp` flag, then replace the corresponding variables in the file: `best_q_R_grasp`, `best_world_to_grasp`, and `best_world_to_eef_goal`.
 
 ## How to run the integrated bed bathing and limb manipulation pipeline
 
