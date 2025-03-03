@@ -1,3 +1,27 @@
+# MIT License
+
+# Copyright (c) 2019 Healthcare Robotics Lab
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+# Modified by: Yubin Koh (koh22@purdue.edu)
+
 import numpy as np
 import pybullet as p
 import random
@@ -378,24 +402,6 @@ class TargetsUtil:
     def get_new_contact_points(self, targeted_arm):
         new_contact_points = 0
         indices_to_delete = []
-        # # for c in p.getContactPoints(bodyA=self.tool, bodyB=self.humanoid_id, physicsClientId=self.pid):
-        # for c in p.getClosestPoints(bodyA=self.tool, bodyB=self.humanoid_id, distance=100, physicsClientId=self.pid):
-        #     linkA = c[3]
-        #     linkB = c[4]
-        #     contact_position = np.array(c[6])  # contact position on B
-        #     if linkA in [1]:  # tool endtip
-        #         # Only consider contact with human upperarm, forearm, hand
-        #         if linkB < 0 or linkB not in self.human_right_arm:
-        #             continue
-
-        #         # Check feasible targets
-        #         for i, (target_pos_world, target) in enumerate(zip(self.feasible_targets_pos_world, self.feasible_targets)):
-        #             if np.linalg.norm(contact_position - target_pos_world) < 0.028:
-        #                 # The robot made contact with a point on the person's arm 
-        #                 new_contact_points += 1
-        #                 # p.resetBasePositionAndOrientation(target, [1000, 1000, 1000], [0, 0, 0, 1], physicsClientId=self.pid)
-        #                 indices_to_delete.append(i)
-
         tool_endtip_pos = p.getLinkState(self.tool, 1, physicsClientId=self.pid)[0]
         # Check feasible targets
         for i, (target_pos_world, target) in enumerate(zip(self.feasible_targets_pos_world, self.feasible_targets)):
