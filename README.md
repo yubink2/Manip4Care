@@ -63,4 +63,4 @@ python wiping_manipulation_demo.py --help
 
 ## Acknowledgements
 
-* We want to thank the authors of [RAMP](https://github.com/SamsungLabs/RAMP) for their amazing work. Our trajectory planning and following for limb manipulation are adapted from their framework. Also, our wiping implementation was inspired from [AssistiveGym](https://github.com/Healthcare-Robotics/assistive-gym).
+We want to thank the authors of [RAMP](https://github.com/SamsungLabs/RAMP) for their amazing work. Our trajectory planning and following for limb manipulation are adapted from their framework. Also, our wiping implementation was inspired from [AssistiveGym](https://github.com/Healthcare-Robotics/assistive-gym).
