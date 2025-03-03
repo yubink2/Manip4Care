@@ -1,5 +1,6 @@
 # Assistive Limb Manipulation
 Official implementation of Benchmark for Robotic Manipulation of Human Limbs for Solving Assistive Care Tasks.
+
 ![Example](misc/example.png)
 
 ## How to set up the environment
