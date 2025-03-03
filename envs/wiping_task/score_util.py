@@ -54,8 +54,6 @@ class ScoreUtil:
                                                             jointRanges=self.robot_2.arm_joint_ranges, restPoses=self.robot_2.arm_rest_poses,
                                                             maxNumIterations=40, physicsClientId=self.pid)
             q_robot_2_closer = [q_robot_2_closer[i] for i in range(len(self.robot_2.arm_controllable_joints))]
-            # q_robot_2_closer = self.util.wrap_to_pi(q_robot_2_closer)  ###
-            # q_robot_2_closer = self.util.clamp_to_limits(q_robot_2_closer, self.robot.arm_lower_limits, self.robot.arm_upper_limits)  ###
             if min(q_robot_2_closer) < min(self.robot_2.arm_lower_limits) or max(q_robot_2_closer) > max(self.robot_2.arm_upper_limits):  # invalid joint state
                 continue
 
@@ -82,8 +80,6 @@ class ScoreUtil:
                                                             jointRanges=self.robot_2.arm_joint_ranges, restPoses=self.robot_2.arm_rest_poses,
                                                             maxNumIterations=40, physicsClientId=self.pid)
             q_robot_2_closer = [q_robot_2_closer[i] for i in range(len(self.robot_2.arm_controllable_joints))]
-            # q_robot_2_closer = self.util.wrap_to_pi(q_robot_2_closer)
-            # q_robot_2_closer = self.util.clamp_to_limits(q_robot_2_closer, self.robot.arm_lower_limits, self.robot.arm_upper_limits)  ###
             if min(q_robot_2_closer) < min(self.robot_2.arm_lower_limits) or max(q_robot_2_closer) > max(self.robot_2.arm_upper_limits):  # invalid joint state
                 continue
 
