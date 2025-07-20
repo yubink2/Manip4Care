@@ -1,5 +1,5 @@
-# Assistive Limb Manipulation
-Official implementation of Benchmark for Robotic Manipulation of Human Limbs for Solving Assistive Care Tasks.
+# Manip4Care
+Official implementation of Manip4Care: Robotic Manipulation of Human Limbs for Solving Assistive Tasks.
 
 ![Example](misc/example.png)
 
@@ -7,7 +7,7 @@ Official implementation of Benchmark for Robotic Manipulation of Human Limbs for
 
 * clone the repository
 ```
-git clone https://github.com/yubink2/AssistiveManipulation.git
+git clone https://github.com/yubink2/Manip4Care.git
 ```
 
 * build the docker image
