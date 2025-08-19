@@ -1,6 +1,7 @@
 # Manip4Care
 Official implementation of Manip4Care: Robotic Manipulation of Human Limbs for Solving Assistive Tasks.
-Check our demonstration video [Here](https://youtu.be/M1puk_67D7c).
+
+[**Paper**](https://arxiv.org/abs/2508.02649) | [**Demo Video**](https://youtu.be/M1puk_67D7c)
 
 ![Example](misc/example.png)
 
