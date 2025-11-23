@@ -157,7 +157,6 @@ class TargetsUtil:
             self.targets_orn_upperarm_world.append(target_orn)
             p.resetBasePositionAndOrientation(target, target_pos, target_orn, physicsClientId=self.pid)
 
-
         # forearm targets position & orientation
         forearm_pos, forearm_orient = p.getLinkState(self.humanoid_id, self.elbow, computeForwardKinematics=True, physicsClientId=self.pid)[4:6]
         forearm_orient = self.util.rotate_quaternion_by_axis(forearm_orient, axis='x', degrees=-90)

@@ -282,8 +282,8 @@ if __name__ == '__main__':
         skip_trial = False
 
         # simulation environments
-        wiping_env = WipingEnv()
-        manip_env = ManipulationEnv(gui=args.gui)
+        wiping_env = WipingEnv(seated=False, wiping=True)
+        manip_env = ManipulationEnv(gui=args.gui, seated=False, wiping=True)
         wiping_env.reset()
         manip_env.reset()
         reset_base_poses(manip_env, wiping_env)

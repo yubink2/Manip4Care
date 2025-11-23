@@ -12,6 +12,8 @@ from manip4care.envs.utils.collision_utils import get_collision_fn
 from manip4care.envs.wiping_task.targets_util import TargetsUtil
 from manip4care.envs.utils.transform_utils import compute_matrix, inverse_matrix
 from manip4care.envs.utils.point_cloud_utils import *
+from manip4care.envs.utils.trajectory_utils import interpolate_trajectory, get_init_traj_from_q_H, get_q_R_from_elbow_pose
+from manip4care.envs.utils.distance_utils import is_near_goal_W_space
 
 # environment
 from manip4care.envs.base_env import BaseEnv
@@ -38,17 +40,21 @@ LINK_SKELETON = [
 
 
 class ManipulationEnv(BaseEnv):
-    def __init__(self, gui=True, seated=False):
-        super().__init__(gui=gui, seated=seated)
+    def __init__(self, gui=True, seated=False, wiping=False):
+        super().__init__(gui=gui, seated=seated, wiping=wiping)
         self.bc.setPhysicsEngineParameter(numSolverIterations=200)
         self.targets_util = TargetsUtil(self.bc._client, self.util)
 
-    def reset(self, wiping=False):
+    def reset(self):
         self.create_world()
-        self.init_tool()
+        if self.wiping:
+            self.init_tool()
 
         # get 'static' obstacle point cloud
-        self.static_obstacles = [self.cube_m_id, self.cube_w_id]
+        if self.wiping:
+            self.static_obstacles = [self.cube_m_id, self.cube_w_id]
+        else:
+            self.static_obstacles = [self.cube_m_id]
         self.static_obs_pcd = self.get_obstacle_point_cloud(self.static_obstacles)
 
         ### wiping robot parameters
@@ -91,8 +97,11 @@ class ManipulationEnv(BaseEnv):
                                                       world_to_eef[0], world_to_eef[1])
         self.eef_grasp_to_eef = eef_grasp_to_eef
 
-        # initialize collision checker        
-        robot_obstacles = [self.bed_id, self.robot_w.id, self.cube_w_id, self.humanoid._humanoid]
+        # initialize collision checker
+        if self.robot_w is not None: 
+            robot_obstacles = [self.bed_id, self.robot_w.id, self.cube_w_id, self.humanoid._humanoid]
+        else:
+            robot_obstacles = [self.bed_id, self.humanoid._humanoid]
         self.robot_m_in_collision = get_collision_fn(self.robot_m.id, self.robot_m.arm_controllable_joints, obstacles=robot_obstacles,
                                                    attachments=[], self_collisions=True,
                                                    disabled_collisions=set(), client_id=self.bc._client)
@@ -181,7 +190,8 @@ class ManipulationEnv(BaseEnv):
         link_to_separate = [self.elbow, self.wrist]
         human_pcd, separate_pcd = get_humanoid_point_cloud(self.humanoid._humanoid, link_to_separate, client_id=self.bc._client, resolution=resolution,
                                                            extra_length=0.03, extra_radius=0.0)
-        robot_pcd = self.get_robot_point_cloud(robot, num_joints)
+        if robot is not None:
+            robot_pcd = self.get_robot_point_cloud(robot, num_joints)
         bed_pcd = self.get_bed_point_cloud(self.bed_id, add_bed_padding)
 
         if add_chest_padding:
@@ -190,7 +200,10 @@ class ManipulationEnv(BaseEnv):
             chest_padding_pcd = generate_box_vertices(half_extents, chest[0], chest[1], resolution=20)
             human_pcd = np.vstack((human_pcd, chest_padding_pcd))
 
-        env_pcd = np.vstack((self.static_obs_pcd, bed_pcd, robot_pcd, human_pcd))
+        if robot is not None:
+            env_pcd = np.vstack((self.static_obs_pcd, bed_pcd, robot_pcd, human_pcd))
+        else:
+            env_pcd = np.vstack((self.static_obs_pcd, bed_pcd, human_pcd))
         arm_pcd = np.array(separate_pcd)
         shoulder_pcd = get_point_cloud_from_collision_shapes_specific_link(self.humanoid._humanoid, self.shoulder, 
                                                                                  resolution=resolution, client_id=self.bc._client,
@@ -415,57 +428,16 @@ class ManipulationEnv(BaseEnv):
             trajectory_planner.detach_from_gripper()
         
     def is_near_goal_W_space(self, world_to_eef, world_to_eef_goal, threshold=0.03):
-        dist = np.linalg.norm(np.array(world_to_eef_goal[0]) - np.array(world_to_eef[0]))
-        if dist <= threshold:
-            return True
-        else:
-            return False
+        return is_near_goal_W_space(world_to_eef, world_to_eef_goal, threshold=threshold)
     
     def interpolate_trajectory(self, robot_traj, alpha=0.5):
-        new_traj = []
-        for i in range(len(robot_traj) - 1):
-            q_R_i = np.array(robot_traj[i])
-            q_R_next = np.array(robot_traj[i + 1])
-            
-            interpolated_point = (1 - alpha) * q_R_i + alpha * q_R_next
-            new_traj.append(robot_traj[i])  # Append the current point
-            new_traj.append(interpolated_point.tolist())  # Append the interpolated point
-
-        new_traj.append(robot_traj[-1])  # Append the last point to complete the trajectory
-
-        return new_traj
+        return interpolate_trajectory(robot_traj, alpha)
     
     def get_init_traj_from_q_H(self, q_H_init, q_H_goal, q_R_init):
-        q_H_traj = []
-        q_H_traj.append(q_H_init)
-        q_H_traj.append(q_H_goal)
-        q_H_traj = self.interpolate_trajectory(q_H_traj, 0.5)
-        q_H_traj = self.interpolate_trajectory(q_H_traj, 0.5)
-        
-        q_R_traj = []
-        q_R_traj.append(q_R_init)
-        prev_q_R = q_R_init
-        
-        for q_H in q_H_traj[1:]:
-            self.reset_human_arm(q_H)
-            q_R = self.get_q_R_from_elbow_pose(prev_q_R)
-            q_R_traj.append(q_R)
-            prev_q_R = q_R
-    
-        return q_H_traj, q_R_traj
+        return get_init_traj_from_q_H(self, q_H_init, q_H_goal, q_R_init)
 
     def get_q_R_from_elbow_pose(self, prev_q_R):
-        world_to_elbow_joint = self.bc.getLinkState(self.humanoid._humanoid, self.elbow)[4:6]
-        world_to_cp = self.bc.multiplyTransforms(world_to_elbow_joint[0], world_to_elbow_joint[1],
-                                                 self.elbow_joint_to_cp[0], self.elbow_joint_to_cp[1])
-        world_to_eef = self.bc.multiplyTransforms(world_to_cp[0], world_to_cp[1],
-                                                  self.cp_to_eef[0], self.cp_to_eef[1])
-        q_R_goal = self.bc.calculateInverseKinematics(self.robot_m.id, self.robot_m.eef_id, world_to_eef[0], world_to_eef[1],
-                                                      self.robot_m.arm_lower_limits, self.robot_m.arm_upper_limits, self.robot_m.arm_joint_ranges, 
-                                                      restPoses=prev_q_R,
-                                                      maxNumIterations=50)
-        q_R_goal = [q_R_goal[i] for i in range(len(self.robot_m.arm_controllable_joints))]
-        return q_R_goal
+        return get_q_R_from_elbow_pose(self, prev_q_R)
     
     def get_obj_base_pose(self, obj):
         if obj == "bed":

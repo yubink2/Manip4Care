@@ -18,7 +18,7 @@ conda activate manip4care
 * install repo + dependencies
 ```bash
 pip install -r requirements.txt
-pip install -e .
+pip install -e . --no-build-isolation
 pip install -e manip4care/resources/csdf
 ```
 

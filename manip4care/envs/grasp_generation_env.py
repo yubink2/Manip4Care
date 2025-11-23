@@ -17,8 +17,8 @@ from manip4care.envs.base_env import BaseEnv
 
 
 class GraspEnv(BaseEnv):
-    def __init__(self, gui=False, seated=False):
-        super().__init__(gui=gui, seated=seated)
+    def __init__(self, gui=False, seated=False, wiping=False):
+        super().__init__(gui=gui, seated=seated, wiping=wiping)
 
     def reset(self):
         self.create_world()

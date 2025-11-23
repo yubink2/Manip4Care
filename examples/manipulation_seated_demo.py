@@ -38,7 +38,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    manip_env = ManipulationEnv(gui=args.gui, seated=True)
+    manip_env = ManipulationEnv(gui=args.gui, seated=True, wiping=False)
     wiping_env = WipingEnv(seated=True)
     manip_env.reset()
     wiping_env.reset()
@@ -50,9 +50,6 @@ if __name__ == '__main__':
     q_H_init = manip_env.human_rest_poses
 
     off_base_pose = ((100,100,100), (0,0,0,1))
-    manip_env.reset_base_pose(manip_env.robot_w.id, off_base_pose[0], off_base_pose[1])
-    manip_env.reset_base_pose(manip_env.cube_w_id, off_base_pose[0], off_base_pose[1])
-    manip_env.reset_base_pose(manip_env.tool, off_base_pose[0], off_base_pose[1])
     wiping_env.reset_base_pose(wiping_env.robot_w.id, off_base_pose[0], off_base_pose[1])
     wiping_env.reset_base_pose(wiping_env.cube_w_id, off_base_pose[0], off_base_pose[1])
     wiping_env.reset_base_pose(wiping_env.tool, off_base_pose[0], off_base_pose[1])

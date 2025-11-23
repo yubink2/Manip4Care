@@ -2,6 +2,7 @@
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
+import os
 
 # envs
 from manip4care.envs.manipulation_env import ManipulationEnv
@@ -64,7 +65,7 @@ def visualize_labeled_pcd(labeled_pcd):
     plt.show()
 
 def save_dataset(iteration):
-    file_prefix = f'data/{iteration}'
+    file_prefix = os.path.join(os.getcwd(), 'nlc_predictor', 'data', str(iteration))
     with open(f'{file_prefix}_q_H_init_list.dat', 'wb') as file:
         pickle.dump(np.array(q_H_init_list), file)
     with open(f'{file_prefix}_labeled_pcd_init_list.dat', 'wb') as file:
@@ -94,8 +95,8 @@ def save_dataset(iteration):
 
 if __name__ == '__main__':
     # simulation environments
-    wiping_env = WipingEnv(gui=False)
-    manip_env = ManipulationEnv(gui=False)
+    wiping_env = WipingEnv(gui=False, wiping=True)
+    manip_env = ManipulationEnv(gui=False, wiping=True)
     wiping_env.reset()
     manip_env.reset()
     manip_env.lock_robot_gripper_joints(manip_env.robot_m)
@@ -279,26 +280,27 @@ if __name__ == '__main__':
     print(f'labeled_pcd_goal_list: {len(labeled_pcd_goal_list)}, {len(labeled_pcd_goal_list[0])}, {len(labeled_pcd_goal_list[0][0])}')
 
     # store dataset
-    with open('data/q_H_init_list.dat', 'wb') as file:
+    path = os.path.join(os.getcwd(), 'nlc_predictor', 'data')
+    with open(f'{path}/q_H_init_list.dat', 'wb') as file:
         pickle.dump(np.array(q_H_init_list), file)
-    with open('data/labeled_pcd_init_list.dat', 'wb') as file:
+    with open(f'{path}/labeled_pcd_init_list.dat', 'wb') as file:
         pickle.dump(np.array(labeled_pcd_init_list), file)
-    with open('data/q_H_goal_list.dat', 'wb') as file:
+    with open(f'{path}/q_H_goal_list.dat', 'wb') as file:
         pickle.dump(np.array(q_H_goal_list), file)
-    with open('data/labeled_pcd_goal_list.dat', 'wb') as file:
+    with open(f'{path}/labeled_pcd_goal_list.dat', 'wb') as file:
         pickle.dump(np.array(labeled_pcd_goal_list), file)
     print('dataset saved successfully -- final')
 
     # print dataset
-    with open('data/q_H_init_list.dat', 'rb') as file:
+    with open(f'{path}/q_H_init_list.dat', 'rb') as file:
         loaded_data = pickle.load(file)
     print(loaded_data, '\n')
-    with open('data/labeled_pcd_init_list.dat', 'rb') as file:
+    with open(f'{path}/labeled_pcd_init_list.dat', 'rb') as file:
         loaded_data = pickle.load(file)
     print(loaded_data, '\n')
-    with open('data/q_H_goal_list.dat', 'rb') as file:
+    with open(f'{path}/q_H_goal_list.dat', 'rb') as file:
         loaded_data = pickle.load(file)
     print(loaded_data, '\n')
-    with open('data/labeled_pcd_goal_list.dat', 'rb') as file:
+    with open(f'{path}/labeled_pcd_goal_list.dat', 'rb') as file:
         loaded_data = pickle.load(file)
     print(loaded_data, '\n')

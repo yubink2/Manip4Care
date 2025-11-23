@@ -34,7 +34,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    grasp_env = GraspEnv(gui=args.gui, seated=args.seated)
+    grasp_env = GraspEnv(gui=args.gui, seated=args.seated, wiping=False)
     grasp_env.reset()
 
     # initial configurations
@@ -42,10 +42,6 @@ if __name__ == '__main__':
     q_robot_init = power_off_pose
     q_robot_2_init = power_off_pose
     q_H_init = grasp_env.human_rest_poses
-
-    off_base_pose = ((100,100,100), (0,0,0,1))
-    grasp_env.reset_base_pose(grasp_env.robot_w.id, off_base_pose[0], off_base_pose[1])
-    grasp_env.reset_base_pose(grasp_env.cube_w_id, off_base_pose[0], off_base_pose[1])
 
     if args.seated:
         base_pose = ((0.3, -0.6, 0.65), grasp_env.bc.getQuaternionFromEuler((0, 0, 0)))

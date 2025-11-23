@@ -16,9 +16,10 @@ from wiping_task.util import Util
 
 
 class BaseEnv:
-    def __init__(self, gui=False, seated=False):
+    def __init__(self, gui=False, seated=False, wiping=False):
         self.gui = gui
-        self.seated = seated       
+        self.seated = seated
+        self.wiping = wiping
         self.bc = BulletClient(connection_mode=p.GUI if self.gui else p.DIRECT)
         self.util = Util(self.bc._client)
 
@@ -60,11 +61,13 @@ class BaseEnv:
         human_base = self.bc.getBasePositionAndOrientation(self.humanoid._humanoid)[:2]
         self.T_world_to_human_base = compute_matrix(human_base[0], human_base[1])
 
-        # self.robot_m = None
-        # self.robot_w = None
+        self.robot_w = None
+        self.cube_w_id = None
+        self.world_to_robot_w_base = None
 
         self.create_manip_robot()
-        self.create_wiping_robot()   
+        if self.wiping:
+            self.create_wiping_robot()
 
     def create_manip_robot(self):
         # Load first robot (manipulation)
@@ -83,11 +86,11 @@ class BaseEnv:
 
     def create_wiping_robot(self):
         # Load second robot (wiping)
-        self.robot_w_base_pose = ((0.65, 0, 0.25), (0, 0, 1.57))
+        robot_w_base_pose = ((0.65, 0, 0.25), (0, 0, 1.57))
         self.cube_w_id = self.bc.loadURDF("manip4care/envs/urdf/cube_0.urdf", 
-                            (self.robot_w_base_pose[0][0], self.robot_w_base_pose[0][1], self.robot_w_base_pose[0][2]-0.15), useFixedBase=True)
-        self.world_to_robot_w_base = compute_matrix(translation=self.robot_w_base_pose[0], rotation=self.robot_w_base_pose[1], rotation_type='euler')
-        self.robot_w = UR5Robotiq85(self.bc, self.robot_w_base_pose[0], self.robot_w_base_pose[1])
+                            (robot_w_base_pose[0][0], robot_w_base_pose[0][1], robot_w_base_pose[0][2]-0.15), useFixedBase=True)
+        self.world_to_robot_w_base = compute_matrix(translation=robot_w_base_pose[0], rotation=robot_w_base_pose[1], rotation_type='euler')
+        self.robot_w = UR5Robotiq85(self.bc, robot_w_base_pose[0], robot_w_base_pose[1])
         self.robot_w.load()
         self.robot_w.reset()
 
@@ -181,6 +184,7 @@ class BaseEnv:
             self.bc.resetJointState(robot.id, jointIndex=joint_id, targetValue=q_robot[i], physicsClientId=self.bc._client)
     
     def reset_base_pose(self, obj_id, base_pos, base_orn):
+        assert obj_id is not None
         self.bc.resetBasePositionAndOrientation(obj_id, posObj=base_pos, ornObj=base_orn)
     #################### CONTROL ####################
 
@@ -289,7 +293,7 @@ class BaseEnv:
     #################### GRASP PARAMETERS ####################
 
 if __name__ == '__main__':
-    env = BaseEnv(gui=True)
+    env = BaseEnv(gui=True, wiping=False)
     env.create_world()
     env.create_manip_robot()
     env.create_wiping_robot()   

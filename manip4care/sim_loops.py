@@ -204,7 +204,8 @@ def arm_manipulation_loop(manip_env,
     if manip_demo:
         arm_manip_human_joint_angles = []
 
-    manip_env.lock_robot_arm_joints(manip_env.robot_w, q_robot_2)  #####
+    if manip_env.robot_w is not None:
+        manip_env.lock_robot_arm_joints(manip_env.robot_w, q_robot_2)  #####
 
     # Step 0: instantiate a new motion planning problem
     trajectory_planner = manip_env.init_traj_planner(manip_env.world_to_robot_m_base, clamp_by_human=True,
@@ -212,10 +213,12 @@ def arm_manipulation_loop(manip_env,
     trajectory_follower = manip_env.init_traj_follower(manip_env.world_to_robot_m_base)
     
     # Step 1: move robot to grasping pose
-    manip_env.reset_robot(manip_env.robot_w, q_robot_2)
+    if manip_env.robot_w is not None:
+        manip_env.reset_robot(manip_env.robot_w, q_robot_2)
     manip_env.reset_robot(manip_env.robot_m, q_robot_init)
     manip_env.reset_human_arm(q_H_init)
-    manip_env.targets_util.update_targets()
+    if manip_env.wiping:
+        manip_env.targets_util.update_targets()
 
     # Step 2: attach human arm to eef
     env_pcd, arm_pcd, _ = manip_env.compute_env_pcd(robot=manip_env.robot_w, 
@@ -264,7 +267,8 @@ def arm_manipulation_loop(manip_env,
             for _ in range(300):
                 manip_env.move_robot(manip_env.robot_m, q_robot_goal)
                 manip_env.bc.stepSimulation()
-            manip_env.targets_util.update_targets()
+            if manip_env.wiping:
+                manip_env.targets_util.update_targets()
             
             current_time = time.time()
             arm_manip_success_times = current_time - arm_manip_start
@@ -296,7 +300,8 @@ def arm_manipulation_loop(manip_env,
             for _ in range(300):
                 manip_env.move_robot(manip_env.robot_m, next_joint_angles)
                 manip_env.bc.stepSimulation()
-            manip_env.targets_util.update_targets()
+            if manip_env.wiping:
+                manip_env.targets_util.update_targets()
 
             # save current_joint_angle
             current_joint_angles = manip_env.get_robot_joint_angles(manip_env.robot_m)
@@ -320,7 +325,8 @@ def arm_manipulation_loop(manip_env,
     manip_env.reset_robot(manip_env.robot_m, q_R_goal)
     manip_env.attach_human_arm_to_eef()
 
-    manip_env.unlock_robot_arm_joints(manip_env.robot_w, q_robot_2)  #####
+    if manip_env.robot_w is not None:
+        manip_env.unlock_robot_arm_joints(manip_env.robot_w, q_robot_2)  #####
     arm_manip_total_dist = compute_travel_distance(arm_manip_eef_pos_list)
     print('arm manipulation loop is done')
 
@@ -341,6 +347,7 @@ def move_robot_loop(manip_env, robot, other_robot, q_robot_init, q_robot_goal, w
     move_robot_total_traj = []
 
     # Step 0: instantiate a new motion planning problem
+    assert robot is not None
     if robot == manip_env.robot_m:
         world_to_robot_base = manip_env.world_to_robot_m_base
     elif robot == manip_env.robot_w:

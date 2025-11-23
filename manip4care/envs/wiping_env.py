@@ -1,3 +1,4 @@
+from manip4care.envs.utils.config_utils import find_goal_configs
 import numpy as np
 import time
 import math
@@ -8,13 +9,34 @@ from wiping_task.targets_util import TargetsUtil
 from wiping_task.score_util import ScoreUtil
 from utils.collision_utils import get_collision_fn
 from utils.point_cloud_utils import *
+from manip4care.envs.utils.trajectory_utils import (
+    interpolate_trajectory,
+    get_init_traj_from_q_H,
+    get_q_R_from_elbow_pose,
+    get_eef_pose,
+    is_not_discontinuous,
+)
+from manip4care.envs.utils.distance_utils import (
+    get_human_to_robot_dist,
+    is_near_goal_W_space,
+    get_bed_to_robot_dist,
+    get_cube_to_robot_dist,
+    get_robot_to_robot_2_dist,
+)
+from manip4care.envs.utils.config_utils import (
+    validate_q_R,
+    validate_q_robot_2,
+    get_valid_q_H,
+    get_new_human_robot_configs,
+    find_goal_configs,
+)
 
 # environment
 from envs.base_env import BaseEnv
 
 class WipingEnv(BaseEnv):
-    def __init__(self, gui=False, seated=False):
-        super().__init__(gui=gui, seated=seated)
+    def __init__(self, gui=False, seated=False, wiping=True):
+        super().__init__(gui=gui, seated=seated, wiping=wiping)
         self.targets_util = TargetsUtil(self.bc._client, self.util)
         self.score_util = ScoreUtil(self.bc._client, self.util)
 
@@ -250,56 +272,13 @@ class WipingEnv(BaseEnv):
         return robot_traj
     
     def interpolate_trajectory(self, robot_traj, alpha=0.5):
-        new_traj = []
-        for i in range(len(robot_traj) - 1):
-            q_R_i = np.array(robot_traj[i])
-            q_R_next = np.array(robot_traj[i + 1])
-            
-            interpolated_point = (1 - alpha) * q_R_i + alpha * q_R_next
-            new_traj.append(robot_traj[i])  # current point
-            new_traj.append(interpolated_point.tolist())  # interpolated point
-
-        new_traj.append(robot_traj[-1])  # last point
-
-        return new_traj
-
-    def generate_random_q_H(self):
-        q_H_0 = np.random.uniform(self.human_arm_lower_limits[0], self.human_arm_upper_limits[0])
-        q_H_1 = np.random.uniform(self.human_arm_lower_limits[1], self.human_arm_upper_limits[1])
-        q_H_2 = np.random.uniform(self.human_arm_lower_limits[2], self.human_arm_upper_limits[2])
-        q_H_3 = np.random.uniform(self.human_arm_lower_limits[3], self.human_arm_upper_limits[3])
-
-        return [q_H_0, q_H_1, q_H_2, q_H_3] 
-    
-    def human_in_collision(self):
-        """Check if any part of the human arm collides with other objects."""
-        contact_points = self.bc.getContactPoints(bodyA=self.humanoid._humanoid, physicsClientId=self.bc._client)
-        for point in contact_points:
-            if (point[2] in [self.bed_id]):
-                return True
-        return False
+        return interpolate_trajectory(robot_traj, alpha)
 
     def get_valid_q_H(self):
-        """Reset the human arm and check for collisions until no collision is detected."""
-        for _ in range(5000):
-            q_H = self.generate_random_q_H()
-            self.reset_human_arm(q_H)
-            self.bc.stepSimulation(physicsClientId=self.bc._client)
-            if not self.human_in_collision():
-                self.lock_human_joints(q_H)
-                world_to_elbow = self.bc.getLinkState(self.humanoid._humanoid, self.elbow)[:2]
-                return q_H, world_to_elbow
-        raise ValueError('valid human config not found!')
+        return get_valid_q_H(self)
 
     def get_eef_pose(self, robot, current_joint_angles, target_joint_angles):
-        self.reset_robot(robot, target_joint_angles)
-        eef_pose = self.bc.getLinkState(robot.id, robot.eef_id)[:2]
-        self.reset_robot(robot, current_joint_angles)
-        return eef_pose
-    
-    def step(self):
-        self.bc.stepSimulation(physicsClientId=self.bc._client)
-        self.targets_util.update_targets()
+        return get_eef_pose(self, robot, current_joint_angles, target_joint_angles)
 
     ########## SCORE ##########
     def get_score(self, q_H_init, q_H_goal, q_robot, w_feasibility=0.9, w_closeness=0.1):
@@ -320,338 +299,45 @@ class WipingEnv(BaseEnv):
     
     ###### ROBOT CONFIG VALIDATION ######
     def get_human_to_robot_dist(self, robot, q_H, q_robot):
-        self.reset_human_arm(q_H)
-        self.reset_robot(robot, q_robot)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=robot.id, bodyB=self.humanoid._humanoid, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if robot == self.robot_w:
-                if linkA >= 4 and linkB in self.human_arm:
-                    continue
-            elif linkB in self.human_arm:
-                continue
-
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-
-        return min_dist
+        return get_human_to_robot_dist(self, robot, q_H, q_robot)
     
     def get_bed_to_robot_dist(self, robot, q_robot):
-        self.reset_robot(robot, q_robot)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=robot.id, bodyB=self.bed_id, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if robot == self.robot_m:
-                if linkA >= 9:  # skip gripper fingers
-                    continue
-
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-
-        return min_dist
+        return get_bed_to_robot_dist(self, robot, q_robot)
     
     def get_cube_to_robot_dist(self, robot, q_robot, cube_id):
-        self.reset_robot(robot, q_robot)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=robot.id, bodyB=cube_id, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if robot == self.robot_m:
-                if linkA >= 9:  # skip gripper fingers
-                    continue
-
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-
-        return min_dist
+        return get_cube_to_robot_dist(self, robot, q_robot, cube_id)
     
     def get_robot_to_robot_2_dist(self, q_robot, q_robot_2):
-        self.reset_robot(self.robot_m, q_robot)
-        self.reset_robot(self.robot_w, q_robot_2)
-        self.bc.stepSimulation()
-        min_dist = float('inf')
-        for c in p.getClosestPoints(bodyA=self.robot_w.id, bodyB=self.robot_m.id, distance=100, physicsClientId=self.bc._client):
-            linkA = c[3]
-            linkB = c[4]
-            if linkB >= 9:  # skip gripper fingers
-                continue
-        
-            contact_distance = np.array(c[8])
-            if contact_distance < min_dist:
-                min_dist = contact_distance
-
-        return min_dist
+        return get_robot_to_robot_2_dist(self, q_robot, q_robot_2)
     
     def validate_q_R(self, q_H, q_R, check_goal=False):
-        # feasibility check
-        if min(q_R) < min(self.robot_m.arm_lower_limits) or max(q_R) > max(self.robot_m.arm_upper_limits):
-            return False
-        
-        self.reset_robot(self.robot_m, q_R)
-        self.robot_w.reset()
-        self.reset_human_arm(q_H)
-        
-        world_to_elbow = self.bc.getLinkState(self.humanoid._humanoid, self.elbow)[:2]
-        world_to_cp = self.bc.multiplyTransforms(world_to_elbow[0], world_to_elbow[1],
-                                                 self.elbow_to_cp[0], self.elbow_to_cp[1])
-        cp_to_world = self.bc.invertTransform(world_to_cp[0], world_to_cp[1])
-        eef_to_world = self.bc.multiplyTransforms(self.eef_to_cp[0], self.eef_to_cp[1],
-                                                cp_to_world[0], cp_to_world[1])
-        world_to_eef = self.bc.invertTransform(eef_to_world[0], eef_to_world[1])
-        
-        # collision check
-        if self.robot_m_in_collision(q_R):
-            return False
-
-        # reachability check
-        eef_pose = self.bc.getLinkState(self.robot_m.id, self.robot_m.eef_id)[:2]
-        dist = np.linalg.norm(np.array(world_to_eef[0]) - np.array(eef_pose[0]))
-        if dist > 0.03:
-            return False
-
-        if check_goal:
-            # distance to human check
-            dist = self.get_human_to_robot_dist(robot=self.robot_m, q_H=q_H, q_robot=q_R)
-            if dist <= 0.05:
-                return False
-
-            # distance check from robot to bed (exclude gripper fingers)
-            dist = self.get_bed_to_robot_dist(robot=self.robot_m, q_robot=q_R)
-            if dist <= 0.05:
-                return False
-        
-        return True
+        return validate_q_R(self, q_H, q_R, check_goal=check_goal)
     
     def validate_q_robot_2(self, q_H, q_robot, q_robot_2):
-        # feasibility check
-        if min(q_robot_2) < min(self.robot_w.arm_lower_limits) or max(q_robot_2) > max(self.robot_w.arm_upper_limits):
-            return False
-        
-        self.reset_robot(self.robot_w, q_robot_2)
-        self.reset_robot(self.robot_m, q_robot)
-        self.reset_human_arm(q_H)
-
-        # distance check from human
-        dist = self.get_human_to_robot_dist(robot=self.robot_w, q_H=q_H, q_robot=q_robot_2)
-        if dist <= 0.05:
-            return False
-
-        # distance check from bed (exclude gripper fingers)
-        dist = self.get_bed_to_robot_dist(robot=self.robot_w, q_robot=q_robot_2)
-        if dist <= 0.05:
-            return False
-        
-        # distance check from cube (exclude gripper fingers)
-        dist = self.get_cube_to_robot_dist(robot=self.robot_w, q_robot=q_robot_2, cube_id=self.cube_m_id)
-        if dist <= 0.05:
-            return False
-        
-        # distance check from manip robot
-        dist = self.get_robot_to_robot_2_dist(q_robot=q_robot, q_robot_2=q_robot_2)
-        if dist <= 0.05:
-            return False
-        
-        return True
+        return validate_q_robot_2(self, q_H, q_robot, q_robot_2)
     
     def is_not_discontinuous(self, q_old, q_new, angle_threshold = math.pi/2):
-        q_old = np.asarray(q_old)
-        q_new = np.asarray(q_new)
-
-        # Compute raw difference
-        diff = q_new - q_old
-
-        # Check if any joint difference exceeds the angle_threshold
-        if np.any(np.abs(diff) > angle_threshold):
-            return False
-        return True
+        return is_not_discontinuous(q_old, q_new, angle_threshold)
     ###### ROBOT CONFIG VALIDATION ######
 
     def get_init_traj_from_q_H(self, q_H_init, q_H_goal, q_R_init):
-        q_H_traj = []
-        q_H_traj.append(q_H_init)
-        q_H_traj.append(q_H_goal)
-        q_H_traj = self.interpolate_trajectory(q_H_traj, 0.5)
-        q_H_traj = self.interpolate_trajectory(q_H_traj, 0.5)
-        
-        q_R_traj = []
-        q_R_traj.append(q_R_init)
-        prev_q_R = q_R_init
-        
-        for q_H in q_H_traj[1:]:
-            self.reset_human_arm(q_H)
-            q_R = self.get_q_R_from_elbow_pose(prev_q_R)
-            q_R_traj.append(q_R)
-            prev_q_R = q_R
-    
-        return q_H_traj, q_R_traj
+        return get_init_traj_from_q_H(self, q_H_init, q_H_goal, q_R_init)
 
     def get_q_R_from_elbow_pose(self, prev_q_R):
-        # compute IK
-        world_to_elbow_joint = self.bc.getLinkState(self.humanoid._humanoid, self.elbow)[4:6]
-        world_to_cp = self.bc.multiplyTransforms(world_to_elbow_joint[0], world_to_elbow_joint[1],
-                                                 self.elbow_joint_to_cp[0], self.elbow_joint_to_cp[1])
-        world_to_eef = self.bc.multiplyTransforms(world_to_cp[0], world_to_cp[1],
-                                                  self.cp_to_eef[0], self.cp_to_eef[1])
-        q_R_goal = self.bc.calculateInverseKinematics(self.robot_m.id, self.robot_m.eef_id, world_to_eef[0], world_to_eef[1],
-                                                      self.robot_m.arm_lower_limits, self.robot_m.arm_upper_limits, self.robot_m.arm_joint_ranges, 
-                                                      restPoses=prev_q_R,
-                                                      maxNumIterations=50)
-        q_R_goal = [q_R_goal[i] for i in range(len(self.robot_m.arm_controllable_joints))]
-
-        return q_R_goal
+        return get_q_R_from_elbow_pose(self, prev_q_R)
     
     def get_best_valid_goal_configs(self, q_H_init, q_robot, q_robot_2, n_samples=100, time_out=60):
-        q_H_trajs = []
-        q_R_trajs = []
-        q_H_goals = []
-        q_R_goals = []
-        count = 0
-        start_time = time.time()
-        while True:
-            valid_grasp = False
-            if count >= n_samples:
-                break
-            if time.time() - start_time >= time_out and count >= 1:  # timeout = 60 sec
-                print(f'timeout.. score available configs ({count})')
-                break
-            self.reset_robot(self.robot_w, q_robot_2)
-            q_H_goal, _ = self.get_valid_q_H()
-            q_H_traj, q_R_traj = self.get_init_traj_from_q_H(q_H_init=q_H_init, q_H_goal=q_H_goal, q_R_init=q_robot)
-            q_R_goal = q_R_traj[-1]
-            valid_grasp = (self.validate_q_R(q_H=q_H_goal, q_R=q_R_goal, check_goal=True) 
-                           and self.is_not_discontinuous(q_old=q_R_traj[0], q_new=q_R_traj[len(q_R_traj)//2])
-                           and self.is_not_discontinuous(q_old=q_R_traj[len(q_R_traj)//2], q_new=q_R_traj[-1]))
-            if valid_grasp:
-                q_H_trajs.append(q_H_traj)
-                q_R_trajs.append(q_R_traj)
-                q_H_goals.append(q_H_goal)
-                q_R_goals.append(q_R_goal)
-                count += 1
-
-        q_H_scores = []
-        for q_H_goal, q_R_goal in zip(q_H_goals, q_R_goals):
-            self.lock_human_joints(q_H_goal)
-            self.lock_robot_arm_joints(self.robot_m, q_R_goal)
-            score = self.get_score(q_H_init=q_H_init, q_H_goal=q_H_goal, q_robot=q_R_goal)
-            q_H_scores.append(score)
-
-        # sort by scores
-        combined = zip(q_H_scores, q_H_trajs, q_R_trajs, q_H_goals, q_R_goals)  # zip
-        sorted_combined = sorted(combined, key=lambda x: x[0], reverse=True)  # in descending order
-        q_H_scores, q_H_trajs, q_R_trajs, q_H_goals, q_R_goals = zip(*sorted_combined)  # unzip
-
-        q_H_scores = list(q_H_scores)
-        q_H_trajs = list(q_H_trajs)
-        q_R_trajs = list(q_R_trajs)
-        q_H_goals = list(q_H_goals)
-        q_R_goals = list(q_R_goals)
-
-        # validate each waypoint
-        for idx, (q_H_traj, q_R_traj) in enumerate(zip(q_H_trajs, q_R_trajs)):
-            is_valid = True
-            for q_H, q_R in zip(q_H_traj, q_R_traj):
-                self.reset_human_arm(q_H)
-                self.reset_robot(self.robot_m, q_R)
-                is_valid = is_valid and self.validate_q_R(q_H, q_R)
-            if is_valid:
-                # print(idx)
-                break
-
-        # reset environment
-        self.lock_human_joints(q_H_init)
-        self.lock_robot_arm_joints(self.robot_m, q_robot)
-        self.reset_robot(self.robot_w, q_robot_2)
-
-        return q_H_scores[idx], q_H_trajs[idx], q_R_trajs[idx], q_H_goals[idx], q_R_goals[idx]
+        return find_goal_configs(self, q_H_init, q_robot, q_robot_2, n_samples=n_samples, time_out=time_out)
 
     def get_new_human_robot_configs(self, q_H_init, q_robot, q_robot_2):
-        valid_grasp = False
-        while True:
-            self.reset_robot(self.robot_w, q_robot_2)
-            q_H_goal, _ = self.get_valid_q_H()
-            q_R_goal = self.get_q_R_from_elbow_pose(prev_q_R=q_robot)
-            valid_grasp = self.validate_q_R(q_H_goal, q_R_goal, check_goal=True)
-            if valid_grasp:
-                break
-
-        return q_H_goal, q_R_goal
+        return get_new_human_robot_configs(self, q_H_init, q_robot, q_robot_2)
 
     #### MODIFIED VERSIONS
     def get_valid_goal_configs(self, q_H_init, q_robot, q_robot_2, n_samples, time_out=60):
-        q_H_trajs = []
-        q_R_trajs = []
-        q_H_goals = []
-        q_R_goals = []
-        count = 0
-        start_time = time.time()
-        while True:
-            valid_grasp = False
-            # print(count)
-            if count >= n_samples:
-                break
-            if time.time() - start_time >= time_out:  # timeout = 60 sec
-                print(f'timeout with {count} configs..')
-                break
-            self.reset_robot(self.robot_w, q_robot_2)
-            q_H_goal, _ = self.get_valid_q_H()
-            q_H_traj, q_R_traj = self.get_init_traj_from_q_H(q_H_init=q_H_init, q_H_goal=q_H_goal, q_R_init=q_robot)
-            q_R_goal = q_R_traj[-1]
-            valid_grasp = (self.validate_q_R(q_H=q_H_goal, q_R=q_R_goal, check_goal=True) 
-                           and self.is_not_discontinuous(q_old=q_R_traj[0], q_new=q_R_traj[len(q_R_traj)//2])
-                           and self.is_not_discontinuous(q_old=q_R_traj[len(q_R_traj)//2], q_new=q_R_traj[-1]))
-            if valid_grasp:
-                q_H_trajs.append(q_H_traj)
-                q_R_trajs.append(q_R_traj)
-                q_H_goals.append(q_H_goal)
-                q_R_goals.append(q_R_goal)
-                count += 1
+        return find_goal_configs(self, q_H_init, q_robot, q_robot_2, n_samples=n_samples, time_out=time_out, return_all=True)
 
-        return q_H_trajs, q_R_trajs, q_H_goals, q_R_goals
-
-    def get_valid_goal_configs_with_best_score(self, q_H_init, q_robot, q_robot_2,
-                                               q_H_trajs, q_R_trajs, q_H_goals, q_R_goals):
-        q_H_scores = []
-        for q_H_goal, q_R_goal in zip(q_H_goals, q_R_goals):
-            self.lock_human_joints(q_H_goal)
-            self.lock_robot_arm_joints(self.robot_m, q_R_goal)
-            score = self.get_score(q_H_init=q_H_init, q_H_goal=q_H_goal, q_robot=q_R_goal)
-            q_H_scores.append(score)
-
-        # sort by scores
-        combined = zip(q_H_scores, q_H_trajs, q_R_trajs, q_H_goals, q_R_goals)  # zip
-        sorted_combined = sorted(combined, key=lambda x: x[0], reverse=True)  # in descending order
-        q_H_scores, q_H_trajs, q_R_trajs, q_H_goals, q_R_goals = zip(*sorted_combined)  # unzip
-
-        q_H_scores = list(q_H_scores)
-        q_H_trajs = list(q_H_trajs)
-        q_R_trajs = list(q_R_trajs)
-        q_H_goals = list(q_H_goals)
-        q_R_goals = list(q_R_goals)
-
-        # validate each waypoint
-        for idx, (q_H_traj, q_R_traj) in enumerate(zip(q_H_trajs, q_R_trajs)):
-            is_valid = True
-            for q_H, q_R in zip(q_H_traj, q_R_traj):
-                self.reset_human_arm(q_H)
-                self.reset_robot(self.robot_m, q_R)
-                is_valid = is_valid and self.validate_q_R(q_H, q_R)
-            if is_valid:
-                break
-
-        # reset environment
-        self.lock_human_joints(q_H_init)
-        self.lock_robot_arm_joints(self.robot_m, q_robot)
-        self.reset_robot(self.robot_w, q_robot_2)
-
-        return q_H_scores[idx], q_H_trajs[idx], q_R_trajs[idx], q_H_goals[idx], q_R_goals[idx]
+    def get_valid_goal_configs_with_best_score(self, q_H_init, q_robot, q_robot_2, q_H_trajs, q_R_trajs, q_H_goals, q_R_goals):
+        return find_goal_configs(self, q_H_init, q_robot, q_robot_2, existing_trajs=(q_H_trajs, q_R_trajs, q_H_goals, q_R_goals))
 
     ########### POINT CLOUD ###########
     def compute_env_pcd(self, robot, resolution=8):

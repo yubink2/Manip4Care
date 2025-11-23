@@ -6,3 +6,4 @@ nlc_predictor/data/*
 nlc_predictor/models/arm_config_predictor.*
 manip4care.egg-info/
 examples/old_*.py
+notes/
